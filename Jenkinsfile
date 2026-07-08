@@ -6,6 +6,11 @@ pipeline {
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
     stages {
 
         stage('Checkout Source') {
@@ -17,33 +22,13 @@ pipeline {
         stage('Verify Environment') {
             steps {
                 sh '''
-                echo "===== Environment Check ====="
-                java -version
-                mvn -version
-                docker --version
-                git --version
-                docker compose version
+                    echo "===== Environment ====="
+                    java -version
+                    mvn -version
+                    git --version
+                    docker --version
+                    docker compose version
                 '''
-            }
-        }
-
-        stage('Build Portfolio Image') {
-            steps {
-                dir('portfolio-app') {
-                    sh """
-                    docker build -t ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG} .
-                    """
-                }
-            }
-        }
-
-        stage('Build Flask Image') {
-            steps {
-                dir('flask-app') {
-                    sh """
-                    docker build -t ${DOCKER_HUB}/flask-app:${IMAGE_TAG} .
-                    """
-                }
             }
         }
 
@@ -55,39 +40,55 @@ pipeline {
             }
         }
 
-        stage('Build Java Docker Image') {
+        stage('Build Portfolio Image') {
+            steps {
+                dir('portfolio-app') {
+                    sh "docker build -t ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Build Flask Image') {
+            steps {
+                dir('flask-app') {
+                    sh "docker build -t ${DOCKER_HUB}/flask-app:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Build Java Image') {
             steps {
                 dir('java-web-app') {
-                    sh """
-                    docker build -t ${DOCKER_HUB}/java-web-app:${IMAGE_TAG} .
-                    """
+                    sh "docker build -t ${DOCKER_HUB}/java-web-app:${IMAGE_TAG} ."
                 }
             }
         }
 
-        stage('Login to Docker Hub') {
+        stage('Docker Login') {
             steps {
-                withDockerRegistry(credentialsId: 'dockerhub') {
-                    sh 'docker info'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login \
+                        -u "$DOCKER_USER" \
+                        --password-stdin
+                    '''
                 }
             }
         }
 
-        stage('Push Portfolio Image') {
+        stage('Push Images') {
             steps {
-                sh "docker push ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG}"
-            }
-        }
-
-        stage('Push Flask Image') {
-            steps {
-                sh "docker push ${DOCKER_HUB}/flask-app:${IMAGE_TAG}"
-            }
-        }
-
-        stage('Push Java Image') {
-            steps {
-                sh "docker push ${DOCKER_HUB}/java-web-app:${IMAGE_TAG}"
+                sh """
+                    docker push ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG}
+                    docker push ${DOCKER_HUB}/flask-app:${IMAGE_TAG}
+                    docker push ${DOCKER_HUB}/java-web-app:${IMAGE_TAG}
+                """
             }
         }
 
@@ -105,17 +106,21 @@ pipeline {
     }
 
     post {
-        always {
-            sh './scripts/cleanup.sh'
-            cleanWs()
-        }
 
         success {
-            echo 'CI/CD Pipeline completed successfully!'
+            echo "=================================="
+            echo "PIPELINE COMPLETED SUCCESSFULLY"
+            echo "Build Number: ${BUILD_NUMBER}"
+            echo "=================================="
         }
 
         failure {
-            echo 'CI/CD Pipeline failed.'
+            echo "Pipeline Failed!"
+        }
+
+        always {
+            sh './scripts/cleanup.sh'
+            cleanWs()
         }
     }
 }
