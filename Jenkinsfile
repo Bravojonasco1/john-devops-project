@@ -3,11 +3,6 @@ pipeline {
 
     environment {
         DOCKER_HUB = "bravojonasco"
-
-        PORTFOLIO_IMAGE = "portfolio-app"
-        FLASK_IMAGE = "flask-app"
-        JAVA_IMAGE = "java-web-app"
-
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
@@ -19,11 +14,15 @@ pipeline {
             }
         }
 
-        stage('Show Build Info') {
+        stage('Verify Environment') {
             steps {
                 sh '''
-                echo "Build Number: ${BUILD_NUMBER}"
-                echo "Docker Tag: ${IMAGE_TAG}"
+                echo "===== Environment Check ====="
+                java -version
+                mvn -version
+                docker --version
+                git --version
+                docker compose version
                 '''
             }
         }
@@ -32,7 +31,7 @@ pipeline {
             steps {
                 dir('portfolio-app') {
                     sh """
-                    docker build -t ${DOCKER_HUB}/${PORTFOLIO_IMAGE}:${IMAGE_TAG} .
+                    docker build -t ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG} .
                     """
                 }
             }
@@ -42,7 +41,7 @@ pipeline {
             steps {
                 dir('flask-app') {
                     sh """
-                    docker build -t ${DOCKER_HUB}/${FLASK_IMAGE}:${IMAGE_TAG} .
+                    docker build -t ${DOCKER_HUB}/flask-app:${IMAGE_TAG} .
                     """
                 }
             }
@@ -60,7 +59,7 @@ pipeline {
             steps {
                 dir('java-web-app') {
                     sh """
-                    docker build -t ${DOCKER_HUB}/${JAVA_IMAGE}:${IMAGE_TAG} .
+                    docker build -t ${DOCKER_HUB}/java-web-app:${IMAGE_TAG} .
                     """
                 }
             }
@@ -69,62 +68,54 @@ pipeline {
         stage('Login to Docker Hub') {
             steps {
                 withDockerRegistry(credentialsId: 'dockerhub') {
-                    sh 'echo "Docker Hub Login Successful"'
+                    sh 'docker info'
                 }
             }
         }
 
         stage('Push Portfolio Image') {
             steps {
-                sh """
-                docker push ${DOCKER_HUB}/${PORTFOLIO_IMAGE}:${IMAGE_TAG}
-                """
+                sh "docker push ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG}"
             }
         }
 
         stage('Push Flask Image') {
             steps {
-                sh """
-                docker push ${DOCKER_HUB}/${FLASK_IMAGE}:${IMAGE_TAG}
-                """
+                sh "docker push ${DOCKER_HUB}/flask-app:${IMAGE_TAG}"
             }
         }
 
         stage('Push Java Image') {
             steps {
-                sh """
-                docker push ${DOCKER_HUB}/${JAVA_IMAGE}:${IMAGE_TAG}
-                """
+                sh "docker push ${DOCKER_HUB}/java-web-app:${IMAGE_TAG}"
             }
         }
 
-        stage('Deploy Containers') {
+        stage('Deploy') {
             steps {
-                sh '''
-                docker compose down || true
-                docker compose up -d
-                '''
+                sh './scripts/deploy.sh'
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh './scripts/health-check.sh'
             }
         }
     }
 
     post {
+        always {
+            sh './scripts/cleanup.sh'
+            cleanWs()
+        }
 
         success {
-            echo "===================================="
-            echo "BUILD SUCCESSFUL"
-            echo "Images tagged with Build #${BUILD_NUMBER}"
-            echo "===================================="
+            echo 'CI/CD Pipeline completed successfully!'
         }
 
         failure {
-            echo "===================================="
-            echo "BUILD FAILED"
-            echo "===================================="
-        }
-
-        always {
-            cleanWs()
+            echo 'CI/CD Pipeline failed.'
         }
     }
 }
