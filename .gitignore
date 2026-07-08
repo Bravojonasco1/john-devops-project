@@ -26,3 +26,11 @@ Thumbs.db
 
 # Environment
 .env
+# Java build output
+java-web-app/target/
+
+# Maven
+*.class
+
+# Docker
+*.tar
