@@ -3,9 +3,12 @@ pipeline {
 
     environment {
         DOCKER_HUB = "bravojonasco"
+
         PORTFOLIO_IMAGE = "portfolio-app"
         FLASK_IMAGE = "flask-app"
         JAVA_IMAGE = "java-web-app"
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
@@ -16,10 +19,21 @@ pipeline {
             }
         }
 
+        stage('Show Build Info') {
+            steps {
+                sh '''
+                echo "Build Number: ${BUILD_NUMBER}"
+                echo "Docker Tag: ${IMAGE_TAG}"
+                '''
+            }
+        }
+
         stage('Build Portfolio Image') {
             steps {
                 dir('portfolio-app') {
-                    sh 'docker build -t $DOCKER_HUB/$PORTFOLIO_IMAGE:v1 .'
+                    sh """
+                    docker build -t ${DOCKER_HUB}/${PORTFOLIO_IMAGE}:${IMAGE_TAG} .
+                    """
                 }
             }
         }
@@ -27,7 +41,9 @@ pipeline {
         stage('Build Flask Image') {
             steps {
                 dir('flask-app') {
-                    sh 'docker build -t $DOCKER_HUB/$FLASK_IMAGE:v1 .'
+                    sh """
+                    docker build -t ${DOCKER_HUB}/${FLASK_IMAGE}:${IMAGE_TAG} .
+                    """
                 }
             }
         }
@@ -43,32 +59,42 @@ pipeline {
         stage('Build Java Docker Image') {
             steps {
                 dir('java-web-app') {
-                    sh 'docker build -t $DOCKER_HUB/$JAVA_IMAGE:v1 .'
+                    sh """
+                    docker build -t ${DOCKER_HUB}/${JAVA_IMAGE}:${IMAGE_TAG} .
+                    """
+                }
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                withDockerRegistry(credentialsId: 'dockerhub') {
+                    sh 'echo "Docker Hub Login Successful"'
                 }
             }
         }
 
         stage('Push Portfolio Image') {
             steps {
-                withDockerRegistry(credentialsId: 'dockerhub') {
-                    sh 'docker push $DOCKER_HUB/$PORTFOLIO_IMAGE:v1'
-                }
+                sh """
+                docker push ${DOCKER_HUB}/${PORTFOLIO_IMAGE}:${IMAGE_TAG}
+                """
             }
         }
 
         stage('Push Flask Image') {
             steps {
-                withDockerRegistry(credentialsId: 'dockerhub') {
-                    sh 'docker push $DOCKER_HUB/$FLASK_IMAGE:v1'
-                }
+                sh """
+                docker push ${DOCKER_HUB}/${FLASK_IMAGE}:${IMAGE_TAG}
+                """
             }
         }
 
         stage('Push Java Image') {
             steps {
-                withDockerRegistry(credentialsId: 'dockerhub') {
-                    sh 'docker push $DOCKER_HUB/$JAVA_IMAGE:v1'
-                }
+                sh """
+                docker push ${DOCKER_HUB}/${JAVA_IMAGE}:${IMAGE_TAG}
+                """
             }
         }
 
@@ -80,16 +106,25 @@ pipeline {
                 '''
             }
         }
-
     }
 
     post {
+
         success {
-            echo "Deployment Successful!"
+            echo "===================================="
+            echo "BUILD SUCCESSFUL"
+            echo "Images tagged with Build #${BUILD_NUMBER}"
+            echo "===================================="
         }
 
         failure {
-            echo "Pipeline Failed!"
+            echo "===================================="
+            echo "BUILD FAILED"
+            echo "===================================="
+        }
+
+        always {
+            cleanWs()
         }
     }
 }
