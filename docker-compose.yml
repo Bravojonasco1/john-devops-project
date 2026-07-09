@@ -3,7 +3,6 @@ version: "3.9"
 services:
 
   portfolio-app:
-    build: ./portfolio-app
     image: bravojonasco/portfolio-app:v2
     container_name: portfolio-app
     ports:
@@ -11,7 +10,6 @@ services:
     restart: unless-stopped
 
   flask-app:
-    build: ./flask-app
     image: bravojonasco/flask-app:v1
     container_name: flask-app
     ports:
