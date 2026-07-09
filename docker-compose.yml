@@ -17,8 +17,7 @@ services:
     restart: unless-stopped
 
   java-web-app:
-    image: bravojonasco/java-web-app:latest
-    container_name: java-web-app
-    ports:
-      - "8080:8080"
-    restart: unless-stopped
+  image: bravojonasco/java-web-app:latest
+  container_name: java-web-app
+  ports:
+    - "8081:8080"
