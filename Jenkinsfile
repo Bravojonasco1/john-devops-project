@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_HUB = "bravojonasco"
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        IMAGE_TAG = "latest"
     }
 
     options {

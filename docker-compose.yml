@@ -3,21 +3,21 @@ version: "3.9"
 services:
 
   portfolio-app:
-    image: bravojonasco/portfolio-app:v2
+    image: bravojonasco/portfolio-app:latest
     container_name: portfolio-app
     ports:
       - "5000:80"
     restart: unless-stopped
 
   flask-app:
-    image: bravojonasco/flask-app:v1
+    image: bravojonasco/flask-app:latest
     container_name: flask-app
     ports:
       - "5001:5000"
     restart: unless-stopped
 
   java-web-app:
-    image: bravojonasco/java-web-app:v1
+    image: bravojonasco/java-web-app:latest
     container_name: java-web-app
     ports:
       - "8080:8080"
