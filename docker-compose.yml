@@ -21,12 +21,12 @@ services:
     restart: unless-stopped
 
   nginx:
-  image: bravojonasco/nginx-proxy:latest
-  container_name: nginx-proxy
-  ports:
-    - "80:80"
-  depends_on:
-    - portfolio-app
-    - flask-app
-    - java-web-app
-  restart: always
+    image: bravojonasco/nginx-proxy:latest
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+    depends_on:
+      - portfolio-app
+      - flask-app
+      - java-web-app
+    restart: always
