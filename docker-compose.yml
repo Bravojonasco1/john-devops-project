@@ -1,7 +1,4 @@
-version: "3.9"
-
 services:
-
   portfolio-app:
     image: bravojonasco/portfolio-app:latest
     container_name: portfolio-app
@@ -22,3 +19,15 @@ services:
     ports:
       - "8081:8080"
     restart: unless-stopped
+
+  nginx:
+    build:
+      context: ./nginx
+    container_name: nginx-proxy
+    ports:
+      - "8088:80"
+    depends_on:
+      - portfolio-app
+      - flask-app
+      - java-web-app
+    restart: always
