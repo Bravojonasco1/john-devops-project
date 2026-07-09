@@ -2,22 +2,25 @@
 
 set -e
 
-echo "Checking Portfolio..."
+echo "Checking Portfolio App..."
+curl -f http://localhost:5000
 
-curl -f http://localhost:5000 >/dev/null
+echo "Checking Flask App..."
+curl -f http://localhost:5001
 
-echo "Portfolio OK"
+echo "Checking Java App..."
 
-echo "Checking Flask..."
+for i in {1..10}; do
+    if curl -fs http://localhost:8081 > /dev/null; then
+        echo "Java App OK"
+        break
+    fi
 
-curl -f http://localhost:5001 >/dev/null
+    echo "Waiting for Java App... ($i/10)"
+    sleep 5
+done
 
-echo "Flask OK"
-
-echo "Checking Java..."
-
-curl -f http://localhost:8080 >/dev/null
-
-echo "Java OK"
+# Final verification
+curl -fs http://localhost:8081 > /dev/null
 
 echo "All applications are healthy."
