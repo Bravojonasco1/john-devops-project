@@ -1,0 +1,70 @@
+---
+- name: Configure EC2 and Deploy Applications
+  hosts: web
+  become: true
+
+  tasks:
+
+    - name: Update system packages
+      dnf:
+        name: "*"
+        state: latest
+        update_only: yes
+
+    - name: Install Git
+      dnf: 
+        name: git
+        state: present
+
+    - name: Install Docker
+      dnf:
+        name: docker
+        state: present
+
+    - name: Start Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create Docker CLI plugin directory
+      file:
+        path: /usr/libexec/docker/cli-plugins
+        state: directory
+        mode: '0755'
+
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+        dest: /usr/libexec/docker/cli-plugins/docker-compose
+        mode: '0755'
+
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+
+    - name: Clone project repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: main
+        force: yes
+
+    - name: Pull Docker images
+      command: docker compose pull
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Start containers
+      command: docker compose up -d
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Check running containers
+      command: docker ps
+      register: docker_output
+
+    - name: Display running containers
+      debug:
+        var: docker_output.stdout_lines

@@ -1,0 +1,6 @@
+---
+app_dir: /opt/john-devops-project
+
+repo_url: "https://github.com/Bravojonasco1/john-devops-project.git"
+
+docker_compose_file: docker-compose.yml

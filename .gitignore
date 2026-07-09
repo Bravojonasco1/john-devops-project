@@ -1,36 +1,25 @@
 # Terraform
-terraform/.terraform/
-terraform/.terraform.lock.hcl
-terraform/*.tfstate
-terraform/*.tfstate.*
-terraform/crash.log
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Keys
+*.pem
+*.key
+
+# Java
+**/target/
 
 # Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-.venv/
-venv/
 
-# Docker
+# Logs
 *.log
 
-# OS
+# macOS
 .DS_Store
-Thumbs.db
 
-# IDE
+# VS Code
 .vscode/
-.idea/
-
-# Environment
-.env
-# Java build output
-java-web-app/target/
-
-# Maven
-*.class
-
-# Docker
-*.tar
