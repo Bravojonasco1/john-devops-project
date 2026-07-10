@@ -7,10 +7,7 @@ pipeline {
         DOCKER_HUB = "bravojonasco"
         IMAGE_TAG = "latest"
 
-        AWS_REGION = "us-east-1"
-
-        TF_DIR = "terraform"
-        ANSIBLE_DIR = "ansible"
+        AWS_DEFAULT_REGION = "us-east-1"
 
     }
 
@@ -20,13 +17,6 @@ pipeline {
         timestamps()
 
         disableConcurrentBuilds()
-
-        buildDiscarder(
-            logRotator(
-                daysToKeepStr: '7',
-                numToKeepStr: '20'
-            )
-        )
 
     }
 
@@ -102,25 +92,13 @@ pipeline {
 
                 sh '''
 
-                docker build \
-                -t ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG} \
-                portfolio-app
+                docker build -t ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG} portfolio-app
 
+                docker build -t ${DOCKER_HUB}/flask-app:${IMAGE_TAG} flask-app
 
-                docker build \
-                -t ${DOCKER_HUB}/flask-app:${IMAGE_TAG} \
-                flask-app
+                docker build -t ${DOCKER_HUB}/java-web-app:${IMAGE_TAG} java-web-app
 
-
-                docker build \
-                -t ${DOCKER_HUB}/java-web-app:${IMAGE_TAG} \
-                java-web-app
-
-
-                docker build \
-                -t ${DOCKER_HUB}/nginx-proxy:${IMAGE_TAG} \
-                nginx
-
+                docker build -t ${DOCKER_HUB}/nginx-proxy:${IMAGE_TAG} nginx
 
                 '''
 
@@ -133,7 +111,6 @@ pipeline {
         stage('Docker Hub Login') {
 
             steps {
-
 
                 withCredentials([
 
@@ -153,13 +130,14 @@ pipeline {
                     sh '''
 
                     echo "$DOCKER_PASS" | docker login \
+
                     -u "$DOCKER_USER" \
+
                     --password-stdin
 
                     '''
 
                 }
-
 
             }
 
@@ -167,9 +145,11 @@ pipeline {
 
 
 
+
         stage('Push Docker Images') {
 
             steps {
+
 
                 sh '''
 
@@ -189,16 +169,19 @@ pipeline {
 
 
 
+
         stage('Terraform Init') {
 
             steps {
 
-                dir("${TF_DIR}") {
+                dir('terraform') {
+
 
                     withCredentials([
 
                         [$class: 'AmazonWebServicesCredentialsBinding',
-                         credentialsId: 'aws-creds']
+
+                        credentialsId: 'aws-creds']
 
                     ]) {
 
@@ -220,28 +203,45 @@ pipeline {
 
 
 
+
         stage('Terraform Plan') {
 
             steps {
 
 
-                dir("${TF_DIR}") {
+                dir('terraform') {
 
 
-                    sh '''
+                    withCredentials([
 
-                    terraform plan \
-                    -var-file=terraform.tfvars
+                        [$class: 'AmazonWebServicesCredentialsBinding',
 
-                    '''
+                        credentialsId: 'aws-creds']
 
+                    ]) {
+
+
+                        sh '''
+
+                        echo "Checking AWS Identity"
+
+                        aws sts get-caller-identity
+
+
+                        terraform plan \
+
+                        -var-file=terraform.tfvars
+
+                        '''
+
+                    }
 
                 }
-
 
             }
 
         }
+
 
 
 
@@ -252,25 +252,37 @@ pipeline {
             steps {
 
 
-                dir("${TF_DIR}") {
+                dir('terraform') {
 
 
-                    sh '''
+                    withCredentials([
 
-                    terraform apply \
-                    -auto-approve \
-                    -var-file=terraform.tfvars
+                        [$class: 'AmazonWebServicesCredentialsBinding',
 
-                    '''
+                        credentialsId: 'aws-creds']
 
+                    ]) {
+
+
+                        sh '''
+
+                        terraform apply \
+
+                        -auto-approve \
+
+                        -var-file=terraform.tfvars
+
+
+                        '''
+
+                    }
 
                 }
 
-
             }
 
-
         }
+
 
 
 
@@ -281,50 +293,45 @@ pipeline {
             steps {
 
 
-                script {
+                dir('terraform') {
 
 
-                    def publicIP = sh(
+                    script {
 
-                        script: """
 
-                        cd ${TF_DIR}
+                        def serverIP = sh(
 
-                        terraform output -raw public_ip
+                            script: "terraform output -raw public_ip",
 
-                        """,
+                            returnStdout: true
 
-                        returnStdout: true
-
-                    ).trim()
+                        ).trim()
 
 
 
-                    writeFile(
+                        writeFile(
 
-                        file: "${ANSIBLE_DIR}/inventory",
+                            file: "../ansible/inventory",
 
-                        text: """
+                            text: """
 
 [web]
 
-${publicIP} ansible_user=ec2-user
+${serverIP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/demokey.pem
 
 """
 
-                    )
+                        )
 
 
-                    echo "Inventory created for ${publicIP}"
-
+                    }
 
                 }
 
-
             }
 
-
         }
+
 
 
 
@@ -335,36 +342,18 @@ ${publicIP} ansible_user=ec2-user
             steps {
 
 
-                withCredentials([
-
-
-                    sshUserPrivateKey(
-
-                        credentialsId: 'ec2-ssh-key',
-
-                        keyFileVariable: 'SSH_KEY'
-
-                    )
-
-
-                ]) {
+                dir('ansible') {
 
 
                     sh '''
 
-                    ansible-playbook \
-                    -i ansible/inventory \
-                    ansible/playbook.yml \
-                    --private-key $SSH_KEY
-
+                    ansible-playbook playbook.yml
 
                     '''
 
                 }
 
-
             }
-
 
         }
 
@@ -378,42 +367,19 @@ ${publicIP} ansible_user=ec2-user
             steps {
 
 
-                script {
+                sh '''
 
+                ./scripts/health-check.sh
 
-                    def ip = sh(
-
-                    script: """
-
-                    cd terraform
-
-                    terraform output -raw public_ip
-
-                    """,
-
-                    returnStdout:true
-
-                    ).trim()
-
-
-
-                    sh """
-
-                    curl -f http://${ip}:8088 || exit 1
-
-                    """
-
-
-                }
-
+                '''
 
             }
-
 
         }
 
 
     }
+
 
 
 
@@ -425,16 +391,13 @@ ${publicIP} ansible_user=ec2-user
 
             echo """
 
-            ==================================
+            ====================================
 
-            PIPELINE SUCCESSFUL
+            PIPELINE COMPLETED SUCCESSFULLY
 
-            Applications deployed successfully
-
-            ==================================
+            ====================================
 
             """
-
 
         }
 
@@ -443,7 +406,17 @@ ${publicIP} ansible_user=ec2-user
         failure {
 
 
-            echo "Pipeline failed - check logs"
+            echo """
+
+            ====================================
+
+            PIPELINE FAILED
+
+            CHECK LOGS
+
+            ====================================
+
+            """
 
         }
 
@@ -459,8 +432,9 @@ ${publicIP} ansible_user=ec2-user
             '''
 
 
-        }
+            cleanWs()
 
+        }
 
     }
 
