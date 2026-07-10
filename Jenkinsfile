@@ -2,11 +2,11 @@ pipeline {
 
     agent any
 
+
     environment {
 
         DOCKER_HUB = "bravojonasco"
         IMAGE_TAG = "latest"
-
         AWS_DEFAULT_REGION = "us-east-1"
 
     }
@@ -15,7 +15,6 @@ pipeline {
     options {
 
         timestamps()
-
         disableConcurrentBuilds()
 
     }
@@ -66,6 +65,7 @@ pipeline {
 
 
 
+
         stage('Build Java Application') {
 
             steps {
@@ -83,6 +83,8 @@ pipeline {
             }
 
         }
+
+
 
 
 
@@ -108,6 +110,7 @@ pipeline {
 
 
 
+
         stage('Docker Hub Login') {
 
             steps {
@@ -115,13 +118,9 @@ pipeline {
                 withCredentials([
 
                     usernamePassword(
-
                         credentialsId: 'dockerhub',
-
-                        usernameVariable: 'DOCKER_USER',
-
-                        passwordVariable: 'DOCKER_PASS'
-
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
                     )
 
                 ]) {
@@ -129,10 +128,8 @@ pipeline {
 
                     sh '''
 
-                    echo "$DOCKER_PASS" | docker login \
-
-                    -u "$DOCKER_USER" \
-
+                    echo "$DOCKER_PASSWORD" | docker login \
+                    -u "$DOCKER_USERNAME" \
                     --password-stdin
 
                     '''
@@ -149,7 +146,6 @@ pipeline {
         stage('Push Docker Images') {
 
             steps {
-
 
                 sh '''
 
@@ -170,9 +166,12 @@ pipeline {
 
 
 
+
         stage('Terraform Init') {
 
+
             steps {
+
 
                 dir('terraform') {
 
@@ -180,7 +179,6 @@ pipeline {
                     withCredentials([
 
                         [$class: 'AmazonWebServicesCredentialsBinding',
-
                         credentialsId: 'aws-creds']
 
                     ]) {
@@ -206,6 +204,7 @@ pipeline {
 
         stage('Terraform Plan') {
 
+
             steps {
 
 
@@ -215,7 +214,6 @@ pipeline {
                     withCredentials([
 
                         [$class: 'AmazonWebServicesCredentialsBinding',
-
                         credentialsId: 'aws-creds']
 
                     ]) {
@@ -229,7 +227,6 @@ pipeline {
 
 
                         terraform plan \
-
                         -var-file=terraform.tfvars
 
                         '''
@@ -258,7 +255,6 @@ pipeline {
                     withCredentials([
 
                         [$class: 'AmazonWebServicesCredentialsBinding',
-
                         credentialsId: 'aws-creds']
 
                     ]) {
@@ -267,11 +263,8 @@ pipeline {
                         sh '''
 
                         terraform apply \
-
                         -auto-approve \
-
                         -var-file=terraform.tfvars
-
 
                         '''
 
@@ -347,7 +340,9 @@ ${serverIP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/
 
                     sh '''
 
-                    ansible-playbook playbook.yml
+                    chmod 600 /var/lib/jenkins/demokey.pem
+
+                    ansible-playbook -i inventory playbook.yml
 
                     '''
 
@@ -368,6 +363,8 @@ ${serverIP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/
 
 
                 sh '''
+
+                chmod +x scripts/health-check.sh
 
                 ./scripts/health-check.sh
 
@@ -403,6 +400,7 @@ ${serverIP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/
 
 
 
+
         failure {
 
 
@@ -422,6 +420,7 @@ ${serverIP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/
 
 
 
+
         always {
 
 
@@ -436,6 +435,8 @@ ${serverIP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/
 
         }
 
+
     }
+
 
 }
