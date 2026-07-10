@@ -25,6 +25,7 @@ pipeline {
         stage('Verify Environment') {
             steps {
                 sh '''
+                set -e
                 echo "===== Environment ====="
                 java -version
                 mvn -version
@@ -39,7 +40,10 @@ pipeline {
         stage('Build Java Application') {
             steps {
                 dir('java-web-app') {
-                    sh 'mvn clean package'
+                    sh '''
+                    set -e
+                    mvn clean package
+                    '''
                 }
             }
         }
@@ -47,6 +51,8 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 sh '''
+                set -e
+
                 docker build -t ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG} portfolio-app
                 docker build -t ${DOCKER_HUB}/flask-app:${IMAGE_TAG} flask-app
                 docker build -t ${DOCKER_HUB}/java-web-app:${IMAGE_TAG} java-web-app
@@ -65,7 +71,9 @@ pipeline {
                     )
                 ]) {
                     sh '''
-                    echo "$DOCKER_PASSWORD" | docker login \
+                    set -e
+
+                    printf "%s" "$DOCKER_PASSWORD" | docker login \
                         -u "$DOCKER_USERNAME" \
                         --password-stdin
                     '''
@@ -76,6 +84,8 @@ pipeline {
         stage('Push Docker Images') {
             steps {
                 sh '''
+                set -e
+
                 docker push ${DOCKER_HUB}/portfolio-app:${IMAGE_TAG}
                 docker push ${DOCKER_HUB}/flask-app:${IMAGE_TAG}
                 docker push ${DOCKER_HUB}/java-web-app:${IMAGE_TAG}
@@ -91,7 +101,10 @@ pipeline {
                         [$class: 'AmazonWebServicesCredentialsBinding',
                         credentialsId: 'aws-creds']
                     ]) {
-                        sh 'terraform init'
+                        sh '''
+                        set -e
+                        terraform init
+                        '''
                     }
                 }
             }
@@ -105,6 +118,8 @@ pipeline {
                         credentialsId: 'aws-creds']
                     ]) {
                         sh '''
+                        set -e
+
                         echo "Checking AWS Identity"
                         aws sts get-caller-identity
 
@@ -124,9 +139,16 @@ pipeline {
                         credentialsId: 'aws-creds']
                     ]) {
                         sh '''
+                        set -e
+
                         terraform apply \
                           -auto-approve \
                           -var-file=terraform.tfvars
+
+                        terraform output -raw public_ip > ../server_ip.txt
+
+                        echo "Server IP:"
+                        cat ../server_ip.txt
                         '''
                     }
                 }
@@ -135,19 +157,21 @@ pipeline {
 
         stage('Wait for EC2 SSH') {
             steps {
-                dir('terraform') {
-                    sh '''
-                    IP=$(terraform output -raw public_ip)
+                script {
 
-                    echo "Waiting for SSH on $IP..."
+                    def ip = readFile('server_ip.txt').trim()
+
+                    sh """
+                    echo "Waiting for SSH on ${ip}..."
 
                     for i in {1..30}; do
+
                         if ssh \
                             -i /var/lib/jenkins/demokey.pem \
                             -o StrictHostKeyChecking=no \
                             -o UserKnownHostsFile=/dev/null \
                             -o ConnectTimeout=5 \
-                            ec2-user@$IP "echo SSH Ready" >/dev/null 2>&1
+                            ec2-user@${ip} "echo SSH Ready" >/dev/null 2>&1
                         then
                             echo "SSH is available."
                             exit 0
@@ -155,34 +179,31 @@ pipeline {
 
                         echo "SSH not ready yet..."
                         sleep 10
+
                     done
 
                     echo "Timed out waiting for SSH."
                     exit 1
-                    '''
+                    """
                 }
             }
         }
 
         stage('Create Dynamic Ansible Inventory') {
             steps {
-                dir('terraform') {
-                    script {
 
-                        def serverIP = sh(
-                            script: "terraform output -raw public_ip",
-                            returnStdout: true
-                        ).trim()
+                script {
 
-                        writeFile(
-                            file: "../ansible/inventory",
-                            text: """[web]
+                    def serverIP = readFile('server_ip.txt').trim()
+
+                    writeFile(
+                        file: "ansible/inventory",
+                        text: """[web]
 ${serverIP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/demokey.pem
 """
-                        )
+                    )
 
-                        echo "Inventory created for ${serverIP}"
-                    }
+                    echo "Inventory created for ${serverIP}"
                 }
             }
         }
@@ -204,6 +225,8 @@ ${serverIP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/
             steps {
                 dir('ansible') {
                     sh '''
+                    set -e
+
                     chmod 600 /var/lib/jenkins/demokey.pem
 
                     export ANSIBLE_CONFIG=$PWD/ansible.cfg
