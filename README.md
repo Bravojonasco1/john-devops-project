@@ -306,6 +306,7 @@ Applications Become Available
 DevOps Engineer
 
 GitHub: https://github.com/Bravojonasco1
+Linkedln: https://linkedin.com/in/john-eziorobo
 
 ---
 
